@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube 95%
 // @namespace    local.youtube95
-// @version      1.3.0
+// @version      1.3.2
 // @description  Finish the video naturally and open YouTube Home after sharing its link.
 // @homepageURL  https://github.com/sashokey/player-force-watched
 // @updateURL    https://raw.githubusercontent.com/sashokey/player-force-watched/master/player-force-watched.user.js
@@ -9,32 +9,34 @@
 // @match        https://m.youtube.com/*
 // @run-at       document-idle
 // @sandbox      raw
-// @grant        unsafeWindow
-// @grant        GM_getTab
-// @grant        GM_saveTab
+// @grant        none
 // @noframes
 // ==/UserScript==
 
-GM_getTab(tab => {
+(() => {
     'use strict';
 
-    const page = unsafeWindow;
-    const state = tab.playerForceWatched ||= {};
-    if (state.document === page.performance.timeOrigin) return;
-    state.document = page.performance.timeOrigin;
-    GM_saveTab(tab);
+    const marker = 'data-youtube95';
+    const sharedKey = 'player-force-watched:shared';
+    if (document.documentElement.hasAttribute(marker)) return;
+    document.documentElement.setAttribute(marker, '');
 
-    let id, player, timer, observer, deadline, duration, cpn, seekAt, endedAt;
-    let ready = false, shared = false, pending = false, finalized = false, report = false, generation = 0;
+    const label = document.createElement('div');
+    label.setAttribute('role', 'status');
+    label.style.cssText = 'position:fixed;right:8px;bottom:72px;z-index:2147483647;max-width:85vw;padding:6px 9px;border-radius:6px;background:#202020;color:#ffd180;font:12px/1.4 sans-serif;pointer-events:none';
 
-    const videoId = () => page.location.pathname === '/watch' ? new URL(page.location.href).searchParams.get('v') : null;
+    let id, player, timer, observer, deadline, duration, cpn, seekAt, endedAt, report;
+    let playRequested = false, ready = false, shared = false, finalized = false, generation = 0;
 
-    function stop() {
-        clearTimeout(timer);
-        timer = null;
-        observer?.disconnect();
-        observer = null;
-        player = null;
+    const videoId = () => location.pathname === '/watch' ? new URL(location.href).searchParams.get('v') : null;
+
+    let notificationTimer;
+
+    function show(message) {
+        clearTimeout(notificationTimer);
+        label.textContent = message;
+        if (!label.isConnected) document.body.append(label);
+        notificationTimer = setTimeout(() => label.remove(), 4000);
     }
 
     function ownsPlayer() {
@@ -46,46 +48,52 @@ GM_getTab(tab => {
         }
     }
 
+    function stop() {
+        clearTimeout(timer);
+        timer = null;
+        observer?.disconnect();
+        observer = null;
+        player = null;
+    }
+
+    function finish(message) {
+        stop();
+        show(message);
+    }
+
     function finalize() {
         if (!ready || !shared || finalized || videoId() !== id) return;
         finalized = true;
-        state.shared = id;
-        const current = generation;
-        GM_saveTab(tab, () => {
-            if (current === generation && videoId() === id) page.location.assign('https://m.youtube.com/');
-        });
+        try { sessionStorage.setItem(sharedKey, id); } catch {}
+        label.remove();
+        location.replace('https://m.youtube.com/');
     }
 
     function onEnded() {
         ready = true;
-        stop();
+        finish(shared ? 'Shared. Finishing playback.' : 'Ready. Share to Termux from this video page.');
         finalize();
     }
 
-    function onShare(event) {
-        if (!event.isTrusted || event.button !== 0 || !id || finalized || !ready && !observer) return;
-        const button = event.target?.closest?.('button');
-        const model = button?.closest('button-view-model');
-        if (!model?.closest('ytm-slim-video-action-bar-renderer') || model.data?.accessibilityId !== 'id.video.share.button' || button.disabled || button.getAttribute('aria-disabled') === 'true') return;
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (pending) return;
-        pending = true;
+    const nativeShare = navigator.share;
+    if (typeof nativeShare === 'function') navigator.share = function (data) {
+        const result = Reflect.apply(nativeShare, this, arguments);
         const current = generation;
-        const target = id;
+        let target;
         try {
-            page.navigator.share({ url: 'https://youtu.be/' + target }).then(() => {
-                if (current !== generation || videoId() !== target) return;
-                pending = false;
+            const url = new URL(data.url);
+            if (url.hostname === 'youtu.be') target = url.pathname.slice(1);
+            else if (['youtube.com', 'www.youtube.com', 'm.youtube.com'].includes(url.hostname) && url.pathname === '/watch') target = url.searchParams.get('v');
+        } catch {}
+        if (target && target === id) result.then(() => {
+            if (current === generation && videoId() === target) {
                 shared = true;
+                label.remove();
                 finalize();
-            }, () => {
-                if (current === generation) pending = false;
-            });
-        } catch {
-            pending = false;
-        }
-    }
+            }
+        }, () => {});
+        return result;
+    };
 
     function observe(list) {
         if (!ownsPlayer()) return;
@@ -94,7 +102,8 @@ GM_getTab(tab => {
             const url = new URL(entry.name);
             if (!['m.youtube.com', 'www.youtube.com', 's.youtube.com'].includes(url.hostname) || url.pathname !== '/api/stats/watchtime') continue;
             const params = url.searchParams;
-            if (params.get('docid') !== id || params.get('cpn') !== cpn || params.get('adformat') || !params.get('cmt')) continue;
+            if (params.get('docid') !== id || params.get('cpn') !== cpn || params.get('adformat')) continue;
+            if (!params.get('cmt')) continue;
             const position = Number(params.get('cmt'));
             if (Number.isFinite(position) && position >= duration - 0.5 && position <= duration + 0.5 && seekAt && entry.startTime >= seekAt && params.get('state') === 'paused') report = true;
         }
@@ -103,46 +112,56 @@ GM_getTab(tab => {
     function tick() {
         timer = null;
         if (videoId() !== id) return begin();
-        if (page.performance.now() >= deadline) return endedAt ? onEnded() : stop();
+        if (performance.now() >= deadline) {
+            if (endedAt) return onEnded();
+            return finish(seekAt ? 'Video did not finish. Reload to retry.' : 'Playback did not start. Tap Play and reload.');
+        }
+
         try {
             if (!observer) {
-                player = page.document.getElementById('movie_player');
+                player = document.getElementById('movie_player');
                 const data = player?.getVideoData?.();
-                if (data?.video_id === id && data.cpn && ['getDuration', 'getCurrentTime', 'getPlayerState', 'getAdState', 'seekTo'].every(name => typeof player[name] === 'function')) {
-                    if (data.isLive) return stop();
+                if (data?.video_id === id && data.cpn && ['getDuration', 'getCurrentTime', 'getPlayerState', 'getAdState', 'seekTo', 'playVideo'].every(name => typeof player[name] === 'function')) {
+                    if (data.isLive) return finish('Live video skipped.');
                     duration = player.getDuration();
                     if (Number.isFinite(duration) && duration > 0 && player.getAdState() === -1) {
                         cpn = data.cpn;
-                        observer = new page.PerformanceObserver(observe);
+                        observer = new PerformanceObserver(observe);
                         observer.observe({ type: 'resource', buffered: true });
                     }
                 }
             }
             if (observer) {
-                if (!ownsPlayer()) return stop();
+                if (!ownsPlayer()) return finish('Player changed; reload to retry.');
                 if (player.getAdState() === -1) {
-                    const status = player.getPlayerState();
+                    const state = player.getPlayerState();
                     if (!seekAt) {
-                        if (status === 0 && player.getCurrentTime() >= duration - 0.5) return onEnded();
-                        if (status === 1) {
+                        if (state === 0 && player.getCurrentTime() >= duration - 0.5) return onEnded();
+                        if (state === 1) {
                             duration = player.getDuration();
-                            if (!Number.isFinite(duration) || duration <= 0) return stop();
-                            seekAt = page.performance.now();
+                            if (!Number.isFinite(duration) || duration <= 0) return finish('Video duration unavailable.');
+                            seekAt = performance.now();
                             deadline = seekAt + 30000;
                             const target = Math.max(0, duration - 2);
                             if (player.getCurrentTime() < target) player.seekTo(target, true);
+                            show('Playing the final two seconds.');
+                        } else if (!playRequested && state !== 1 && state !== 3) {
+                            playRequested = true;
+                            player.playVideo();
+                            show('Starting playback. Tap Play if blocked.');
                         }
-                    } else if (status === 0 && !endedAt) {
-                        endedAt = page.performance.now();
+                    } else if (state === 0 && !endedAt) {
+                        endedAt = performance.now();
                         duration = player.getDuration();
                         deadline = endedAt + 3000;
+                        show('Video ended. Checking its playback report.');
                     }
                 }
                 if (endedAt && report) return onEnded();
             }
             timer = setTimeout(tick, seekAt && !endedAt ? 250 : 500);
         } catch {
-            stop();
+            finish('Player API unavailable. Reload to retry.');
         }
     }
 
@@ -150,31 +169,31 @@ GM_getTab(tab => {
         const next = videoId();
         if (next === id) return;
         stop();
+        label.remove();
         id = next;
         generation++;
-        ready = shared = pending = finalized = report = false;
+        playRequested = ready = shared = finalized = report = false;
         seekAt = endedAt = 0;
-        if (!id || state.shared === id) return;
-        if (state.shared) {
-            delete state.shared;
-            GM_saveTab(tab);
-        }
-        if (!page.navigation || !page.PerformanceObserver || typeof page.navigator.share !== 'function') return;
-        deadline = page.performance.now() + 60000;
+        if (!id) return;
+        try {
+            const previous = sessionStorage.getItem(sharedKey);
+            if (previous === id) return;
+            if (previous) sessionStorage.removeItem(sharedKey);
+        } catch {}
+        if (!window.navigation || !window.PerformanceObserver) return show('Required browser APIs unavailable.');
+        if (typeof nativeShare !== 'function') return show('Native sharing unavailable.');
+        deadline = performance.now() + 60000;
+        show('Waiting for the player.');
         tick();
     }
 
-    page.document.addEventListener('click', onShare, true);
-    page.navigation?.addEventListener('navigatesuccess', begin);
-    page.addEventListener('pagehide', () => {
-        generation++;
-        stop();
-    });
-    page.addEventListener('pageshow', event => {
+    window.navigation?.addEventListener('navigatesuccess', begin);
+    window.addEventListener('pagehide', stop);
+    window.addEventListener('pageshow', event => {
         if (event.persisted) {
             id = undefined;
             begin();
         }
     });
     begin();
-});
+})();
