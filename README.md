@@ -13,11 +13,11 @@ Tampermonkey uses this repository for updates when automatic script updates are 
 ## Usage
 
 1. Open a video on `m.youtube.com`. If autoplay is blocked, tap Play.
-2. Keep the page visible until `Ready` appears.
+2. Keep the page visible until the video ends and YouTube shows its replay button.
 3. Use YouTube's **Share** button on that video page and choose **Termux**.
 
-The transition to YouTube Home happens once, after the browser reports successful sharing. The status message disappears. Cancelling the share dialog leaves the video page in place. When you return to Edge, YouTube Home is open.
+Your click on YouTube's Share button opens the system share dialog with the video's link. The transition to YouTube Home happens once, after the browser reports successful sharing. Cancelling the dialog leaves the video page in place. When you return to Edge, YouTube Home is open.
 
-`Ready` means the video has ended and can be shared. The final playback report is sent when the script leaves the video page after sharing. The video is not reopened. The history progress bar may take a few seconds to update.
+The script adds no messages to the page. It waits for YouTube autoplay or your press of Play, then makes one seek. The final playback report is sent when it leaves the video page after sharing. The history progress bar may take a few seconds to update.
 
-The script does not pause playback, open history, or send tracking requests itself. Playback may be audible. Seeking does not count the skipped portion as actual watch time or guarantee changes to recommendations.
+Playback may be audible. Seeking does not count the skipped portion as actual watch time or guarantee changes to recommendations. Player control remains automated and can be distinguishable from manual seeking.
