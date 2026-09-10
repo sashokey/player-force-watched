@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube 95%
 // @namespace    local.youtube95
-// @version      1.2.1
-// @description  Finish the video naturally and finalize playback after sharing its link.
+// @version      1.2.2
+// @description  Finish the video naturally and open YouTube Home after sharing its link.
 // @homepageURL  https://github.com/sashokey/player-force-watched
 // @updateURL    https://raw.githubusercontent.com/sashokey/player-force-watched/master/player-force-watched.user.js
 // @downloadURL  https://raw.githubusercontent.com/sashokey/player-force-watched/master/player-force-watched.user.js
@@ -62,10 +62,7 @@
         finalized = true;
         try { sessionStorage.setItem(sharedKey, id); } catch {}
         label.remove();
-        const url = new URL(location.href);
-        url.searchParams.set('t', Math.max(0, Math.floor(duration) - 1) + 's');
-        if (url.href === location.href) location.reload();
-        else location.replace(url.href);
+        location.replace('https://m.youtube.com/');
     }
 
     function onEnded() {

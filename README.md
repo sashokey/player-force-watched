@@ -1,6 +1,6 @@
 Tampermonkey userscript for Microsoft Edge on Android and `m.youtube.com`.
 
-Seeks to the last two seconds and lets the video finish naturally. After you share its link, reopens the same video near its end so YouTube sends its final playback report. Live videos and Shorts are skipped.
+Seeks to the last two seconds and lets the video finish naturally. After you share its link, opens YouTube Home so YouTube sends its final playback report. Live videos and Shorts are skipped.
 
 ## Installation
 
@@ -16,8 +16,8 @@ Tampermonkey uses this repository for updates when automatic script updates are 
 2. Keep the page visible until `Ready` appears.
 3. Use YouTube's **Share** button on that video page and choose **Termux**.
 
-The page reload happens once, after the browser reports successful sharing. The status message disappears and stays hidden for that video in the current tab. Cancelling the share dialog leaves the page in place. The video remains near its end when you return to Edge.
+The transition to YouTube Home happens once, after the browser reports successful sharing. The status message disappears. Cancelling the share dialog leaves the video page in place. When you return to Edge, YouTube Home is open.
 
-`Ready` means the video has ended and can be shared. The final playback report is sent when the page reloads after sharing. The history progress bar may take a few seconds to update.
+`Ready` means the video has ended and can be shared. The final playback report is sent when the script leaves the video page after sharing. The video is not reopened. The history progress bar may take a few seconds to update.
 
 The script does not pause playback, open history, or send tracking requests itself. Playback may be audible. Seeking does not count the skipped portion as actual watch time or guarantee changes to recommendations.
