@@ -1,6 +1,6 @@
 Tampermonkey userscript for Microsoft Edge on Android and `m.youtube.com`.
 
-Automatically seeks each opened video to 95%, plays briefly, then pauses. Observes the player's own watchtime request without sending tracking requests itself. Live videos and Shorts are skipped.
+Seeks to the last two seconds and lets the video finish naturally. After you share its link, reopens the same video near its end so YouTube sends its final playback report. Live videos and Shorts are skipped.
 
 ## Installation
 
@@ -12,12 +12,12 @@ Tampermonkey uses this repository for updates when automatic script updates are 
 
 ## Usage
 
-Open a video on `m.youtube.com`. If autoplay is blocked, tap YouTube's Play button. Keep the tab visible and wait for the `YT95` result before sharing to Termux.
+1. Open a video on `m.youtube.com`. If autoplay is blocked, tap Play.
+2. Keep the page visible until `YT95: Ready` appears.
+3. Use YouTube's **Share** button on that video page and choose **Termux**.
 
-- **HTTP 2xx:** a watchtime request reporting a position of at least 95% received a successful HTTP response. Check YouTube history for the saved progress.
-- **Delivery unconfirmed:** the request was observed, but successful delivery could not be verified.
-- **Failed / no confirmed report:** the request failed or no report was confirmed before the timeout. Reload to retry.
+The page reload happens once, after the browser reports successful sharing. Cancelling the share dialog leaves the page in place. The video remains near its end when you return to Edge.
 
-Switching away from the tab stops the script. Playback may be audible briefly.
+`Ready` means the video has ended and can be shared. The final playback report is sent when the page reloads after sharing. The history progress bar may take a few seconds to update.
 
-Seeking to 95% does not count the skipped portion as actual watch time. A successful HTTP response does not guarantee a fully watched mark or a change in recommendations. Automated player control is not guaranteed to be indistinguishable from manual actions.
+The script does not pause playback, open history, or send tracking requests itself. Playback may be audible. Seeking does not count the skipped portion as actual watch time or guarantee changes to recommendations.
