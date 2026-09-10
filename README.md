@@ -13,10 +13,10 @@ Tampermonkey uses this repository for updates when automatic script updates are 
 ## Usage
 
 1. Open a video on `m.youtube.com`. If autoplay is blocked, tap Play.
-2. Keep the page visible until `YT95: Ready` appears.
+2. Keep the page visible until `Ready` appears.
 3. Use YouTube's **Share** button on that video page and choose **Termux**.
 
-The page reload happens once, after the browser reports successful sharing. Cancelling the share dialog leaves the page in place. The video remains near its end when you return to Edge.
+The page reload happens once, after the browser reports successful sharing. The status message disappears and stays hidden for that video in the current tab. Cancelling the share dialog leaves the page in place. The video remains near its end when you return to Edge.
 
 `Ready` means the video has ended and can be shared. The final playback report is sent when the page reloads after sharing. The history progress bar may take a few seconds to update.
 

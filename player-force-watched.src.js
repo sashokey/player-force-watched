@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube 95%
 // @namespace    local.youtube95
-// @version      1.2.0
+// @version      1.2.1
 // @description  Finish the video naturally and finalize playback after sharing its link.
 // @homepageURL  https://github.com/sashokey/player-force-watched
 // @updateURL    https://raw.githubusercontent.com/sashokey/player-force-watched/master/player-force-watched.user.js
@@ -17,6 +17,7 @@
     'use strict';
 
     const marker = 'data-youtube95';
+    const sharedKey = 'player-force-watched:shared';
     if (document.documentElement.hasAttribute(marker)) return;
     document.documentElement.setAttribute(marker, '');
 
@@ -30,7 +31,7 @@
     const videoId = () => location.pathname === '/watch' ? new URL(location.href).searchParams.get('v') : null;
 
     function show(message) {
-        label.textContent = 'YT95: ' + message;
+        label.textContent = message;
         if (!label.isConnected) document.body.append(label);
     }
 
@@ -59,6 +60,8 @@
     function finalize() {
         if (!ready || !shared || finalized || videoId() !== id) return;
         finalized = true;
+        try { sessionStorage.setItem(sharedKey, id); } catch {}
+        label.remove();
         const url = new URL(location.href);
         url.searchParams.set('t', Math.max(0, Math.floor(duration) - 1) + 's');
         if (url.href === location.href) location.reload();
@@ -67,7 +70,7 @@
 
     function onEnded() {
         ready = true;
-        finish('Ready. Share to Termux from this video page.');
+        finish(shared ? 'Shared. Finishing playback.' : 'Ready. Share to Termux from this video page.');
         finalize();
     }
 
@@ -84,6 +87,7 @@
         if (target && target === id) result.then(() => {
             if (current === generation && videoId() === target) {
                 shared = true;
+                label.remove();
                 finalize();
             }
         }, () => {});
@@ -170,6 +174,11 @@
         playRequested = ready = shared = finalized = report = false;
         seekAt = endedAt = 0;
         if (!id) return;
+        try {
+            const previous = sessionStorage.getItem(sharedKey);
+            if (previous === id) return;
+            if (previous) sessionStorage.removeItem(sharedKey);
+        } catch {}
         if (!window.navigation || !window.PerformanceObserver) return show('Required browser APIs unavailable.');
         if (typeof nativeShare !== 'function') return show('Native sharing unavailable.');
         deadline = performance.now() + 60000;
